@@ -394,8 +394,18 @@ export async function printBon(
     });
 
     // Open file for printing
+    // await FileOpener.open({
+    //   filePath: `file:///storage/emulated/0/Documents/${fileName}`,
+    //   contentType: "application/pdf",
+    // });
+
+    const uriResult = await Filesystem.getUri({
+      directory: Directory.Documents,
+      path: fileName,
+    });
+
     await FileOpener.open({
-      filePath: `file:///storage/emulated/0/Documents/${fileName}`,
+      filePath: uriResult.uri,
       contentType: "application/pdf",
     });
   } else {

@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor-community/file-opener": "^8.0.0",
-    "@capacitor/core": "^8.1.0",
-    "@capacitor/filesystem": "^8.1.1",
-    "@capacitor/share": "^8.0.1",
+    "@capacitor-community/file-opener": "^7.0.1",
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/browser": "^7.0.2",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/filesystem": "^7.1.5",
+    "@capacitor/share": "^7.0.2",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
