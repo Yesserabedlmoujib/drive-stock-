@@ -9,6 +9,10 @@ import {
   Users,
   User,
   Warehouse,
+  Truck,
+  RotateCcw,
+  ClipboardMinus,
+  FileText,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,16 +20,54 @@ import { NavLink, useLocation } from "react-router-dom";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Tableau de bord" },
-  { to: "/profile", icon: User, label: "Profile" },
-  { to: "/customer", icon: Users, label: "Clients" },
-  { to: "/products", icon: Package, label: "Produits" },
-  { to: "/bon-de-sortie", icon: FileOutput, label: "Bon de Sortie" },
-  { to: "/bon-de-livraison", icon: FileOutput, label: "Bon de livraison" },
-  { to: "/bon-de-retour", icon: FileOutput, label: "Bon de retour" },
 
-  { to: "/history", icon: History, label: "Historique sortie" },
-  { to: "/historyLivraison", icon: History, label: "Historique Livraison" },
-  { to: "/historyRetour", icon: History, label: "Historique Retour" },
+  { to: "/profile", icon: User, label: "Profile" },
+
+  { to: "/customer", icon: Users, label: "Clients" },
+
+  { to: "/products", icon: Package, label: "Produits" },
+
+  // Stock خروج
+  {
+    to: "/bon-de-sortie",
+    icon: ClipboardMinus,
+    label: "Bon de Sortie",
+  },
+
+  // Livraison
+  {
+    to: "/bon-de-livraison",
+    icon: Truck,
+    label: "Bon de livraison",
+  },
+
+  // Retour
+  {
+    to: "/bon-de-retour",
+    icon: RotateCcw,
+    label: "Bon de retour",
+  },
+
+  // Historique sortie
+  {
+    to: "/history",
+    icon: History,
+    label: "Historique sortie",
+  },
+
+  // Historique livraison
+  {
+    to: "/historyLivraison",
+    icon: FileText,
+    label: "Historique Livraison",
+  },
+
+  // Historique retour
+  {
+    to: "/historyRetour",
+    icon: RotateCcw,
+    label: "Historique Retour",
+  },
 ];
 
 export function AppSidebar() {
@@ -42,7 +84,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <Warehouse className="w-7 h-7 text-sidebar-primary" />
           <span className="text-lg font-semibold text-sidebar-foreground">
-            StockFlow
+            Drive Stock
           </span>
         </div>
         <Button
@@ -74,7 +116,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3 h-16 px-6 border-b border-sidebar-border">
           <Warehouse className="w-8 h-8 text-sidebar-primary" />
           <span className="text-xl font-bold text-sidebar-foreground">
-            StockFlow
+            Drive Stock
           </span>
         </div>
 
