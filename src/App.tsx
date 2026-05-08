@@ -12,12 +12,14 @@ import HistoryS from "./pages/HistoryS";
 import NotFound from "./pages/NotFound";
 import Product from "./pages/Product";
 import Profile from "./pages/Profile";
+import { Toaster } from "./components/ui/toaster";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
+      <Toaster />
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
