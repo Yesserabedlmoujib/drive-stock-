@@ -7,6 +7,9 @@ import {
   FileOutput,
   Package,
   TrendingUp,
+  ClipboardMinus,
+  Truck,
+  RotateCcw,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -98,19 +101,19 @@ export default function Dashboard() {
         <StatCard
           title="Bons de Sortie"
           value={stats?.totalBons || 0}
-          icon={FileOutput}
+          icon={ClipboardMinus}
           variant="default"
         />
         <StatCard
           title="Bons de Livraison"
           value={stats?.totalBonsl || 0}
-          icon={FileOutput}
+          icon={Truck}
           variant="default"
         />
         <StatCard
           title="Bons de Retour"
           value={stats?.totalBonsr || 0}
-          icon={FileOutput}
+          icon={RotateCcw}
           variant="default"
         />
         <StatCard
