@@ -26,8 +26,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 export default function HistoryS() {
+  const { t } = useTranslation();
   const [bons, setBons] = useState<BonDeSortie[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -70,13 +72,16 @@ export default function HistoryS() {
     }).format(new Date(date));
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "TND",
-    }).format(value);
-  };
+  // const formatCurrency = (value: number) => {
+  //   return new Intl.NumberFormat("fr-FR", {
+  //     style: "currency",
+  //     currency: "TND",
+  //   }).format(value);
+  // };
 
+  const formatCurrency = (value: number) => {
+    return `${value.toFixed(2)} ${t("TND")}`;
+  };
   const handleDownload = async (bon: BonDeSortie) => {
     try {
       const profile =
@@ -122,8 +127,10 @@ export default function HistoryS() {
   return (
     <div className="page-container">
       <header className="page-header">
-        <h1 className="page-title">Historique</h1>
-        <p className="page-subtitle">{bons.length} bons de sortie</p>
+        <h1 className="page-title">{t("history")}</h1>
+        <p className="page-subtitle">
+          {bons.length} {t("bons_sortie")}
+        </p>
       </header>
 
       {bons.length === 0 ? (
@@ -132,11 +139,9 @@ export default function HistoryS() {
             <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-1">
-            Aucun historique
+            {t("no_history")}
           </h3>
-          <p className="text-muted-foreground">
-            Les bons de sortie apparaîtront ici
-          </p>
+          <p className="text-muted-foreground">{t("sortie_history_empty")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -179,7 +184,7 @@ export default function HistoryS() {
                   {bon.lieu && (
                     <p className="text-sm text-muted-foreground">
                       <span className="font-semibold text-foreground">
-                        lieu:
+                        {t("place")}:
                       </span>
                       {bon.lieu}
                     </p>
@@ -190,10 +195,12 @@ export default function HistoryS() {
                     <table className="w-full">
                       <thead>
                         <tr className="text-xs text-muted-foreground border-b border-border">
-                          <th className="text-left p-3">Produit</th>
-                          <th className="text-center p-3">Qté</th>
-                          <th className="text-right p-3">Prix (HT)</th>
-                          <th className="text-right p-3">Total (HT)</th>
+                          <th className="text-left p-3">{t("product")}</th>
+                          <th className="text-center p-3">
+                            {t("quantity_short")}
+                          </th>
+                          <th className="text-right p-3">{t("price_ht")}</th>
+                          <th className="text-right p-3">{t("total_ht")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -228,7 +235,7 @@ export default function HistoryS() {
                       className="gap-2"
                     >
                       <Download className="w-4 h-4 text-blue-500" />
-                      Télécharger PDF
+                      {t("download_pdf")}
                     </Button>
                     <Button
                       variant="outline"
@@ -250,19 +257,18 @@ export default function HistoryS() {
       <AlertDialog open={!!deleteBon} onOpenChange={() => setDeleteBon(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce bon de sortie ?</AlertDialogTitle>
+            <AlertDialogTitle>{t("delete_sortie_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce bon de sortie ? Cette action
-              est irréversible.
+              {t("delete_sortie_confirm_message")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Supprimer
+              {t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
