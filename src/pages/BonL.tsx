@@ -17,6 +17,7 @@ import { Minus, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface SelectedProduct {
   product: Product;
@@ -24,6 +25,7 @@ interface SelectedProduct {
 }
 
 export default function BonDeLivraison() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -112,11 +114,15 @@ export default function BonDeLivraison() {
     );
   };
 
+  // const formatCurrency = (value: number) => {
+  //   return new Intl.NumberFormat("fr-FR", {
+  //     style: "currency",
+  //     currency: "TND",
+  //   }).format(value);
+  // };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "TND",
-    }).format(value);
+    return `${value.toFixed(2)} ${t("TND")}`;
   };
 
   const handleCustomerSelect = (customerId: string) => {
@@ -214,25 +220,27 @@ export default function BonDeLivraison() {
   return (
     <div className="page-container">
       <header className="page-header">
-        <h1 className="page-title">Nouveau Bon de Livraison</h1>
-        <p className="page-subtitle">Créez une livraison de stock</p>
+        <h1 className="page-title">{t("new_bon_livraison")}</h1>
+        <p className="page-subtitle">{t("create_delivery_stock")}</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Form Section */}
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-4 md:p-6 space-y-4">
-            <h2 className="font-semibold text-foreground">Informations</h2>
+            <h2 className="font-semibold text-foreground">
+              {t("information")}
+            </h2>
 
             <div className="space-y-2">
-              <Label htmlFor="destinataire">Destinataire *</Label>
+              <Label htmlFor="destinataire">{t("destinataire")} *</Label>
               <div className="space-y-3">
                 <Select
                   value={selectedCustomer?.id?.toString() || ""}
                   onValueChange={handleCustomerSelect}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Sélectionner un client..." />
+                    <SelectValue placeholder={t("select_customer")} />
                   </SelectTrigger>
                   <SelectContent>
                     {/* <div className="p-2 border-b">
@@ -263,7 +271,7 @@ export default function BonDeLivraison() {
                       ))}
                       {filteredCustomers.length === 0 && (
                         <div className="p-3 text-center text-sm text-muted-foreground">
-                          Aucun client trouvé
+                          {t("no_customers")}
                         </div>
                       )}
                     </div>
@@ -275,23 +283,23 @@ export default function BonDeLivraison() {
                 <div className="p-3 bg-muted/50 rounded-lg mt-2">
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <span className="font-medium">Nom:</span>
+                      <span className="font-medium">{t("name")}:</span>
                       <p>{selectedCustomer.name}</p>
                     </div>
                     <div>
-                      <span className="font-medium">MF:</span>
+                      <span className="font-medium">{t("tax_id")}:</span>
                       <p>{selectedCustomer.mf}</p>
                     </div>
                     <div>
-                      <span className="font-medium">Téléphone:</span>
+                      <span className="font-medium">{t("phone")}:</span>
                       <p>{selectedCustomer.telephone}</p>
                     </div>
                     <div>
-                      <span className="font-medium">Ville:</span>
+                      <span className="font-medium">{t("city")}:</span>
                       <p>{selectedCustomer.ville}</p>
                     </div>
                     <div className="col-span-2">
-                      <span className="font-medium">Adresse:</span>
+                      <span className="font-medium">{t("address")}:</span>
                       <p>{selectedCustomer.adresse}</p>
                     </div>
                   </div>
@@ -300,12 +308,12 @@ export default function BonDeLivraison() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="lieu">Lieu</Label>
+              <Label htmlFor="lieu">{t("place")}</Label>
               <Input
                 id="lieu"
                 value={lieu}
                 onChange={(e) => setLieu(e.target.value)}
-                placeholder="Lieu de livraison..."
+                placeholder={t("delivery_place")}
                 className="resize-none"
               />
             </div>
@@ -314,12 +322,12 @@ export default function BonDeLivraison() {
           {/* Product Selection */}
           <div className="bg-card rounded-xl border border-border p-4 md:p-6">
             <h2 className="font-semibold text-foreground mb-4">
-              Sélectionner des produits
+              {t("select_products")}
             </h2>
 
             {products.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">
-                Aucun produit en stock disponible
+                {t("no_product")}
               </p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -356,7 +364,7 @@ export default function BonDeLivraison() {
                             {product.name}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatCurrency(product.price)} • Stock:{" "}
+                            {formatCurrency(product.price)} • {t("stock")}:{" "}
                             {product.quantity}
                           </p>
                         </div>
@@ -378,12 +386,12 @@ export default function BonDeLivraison() {
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-4 md:p-6">
             <h2 className="font-semibold text-foreground mb-4">
-              Produits sélectionnés
+              {t("selected_products")}
             </h2>
 
             {selectedProducts.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                Cliquez sur les produits pour les ajouter
+                {t("click_to_add")}
               </p>
             ) : (
               <div className="space-y-3">
@@ -439,7 +447,9 @@ export default function BonDeLivraison() {
           {/* Total & Save */}
           <div className="bg-card rounded-xl border border-border p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-lg font-medium text-foreground">Total</span>
+              <span className="text-lg font-medium text-foreground">
+                {t("total")}
+              </span>
               <span className="text-2xl font-bold text-primary">
                 {formatCurrency(calculateTotal())}
               </span>
@@ -453,7 +463,7 @@ export default function BonDeLivraison() {
               size="lg"
             >
               <Save className="w-5 h-5" />
-              {saving ? "Enregistrement..." : "Enregistrer le bon"}
+              {saving ? t("saving") : t("save")}
             </Button>
           </div>
         </div>
