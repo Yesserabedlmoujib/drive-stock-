@@ -10,6 +10,7 @@ import { Minus, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface SelectedProduct {
   product: Product;
@@ -17,6 +18,7 @@ interface SelectedProduct {
 }
 
 export default function BonR() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>(
@@ -89,11 +91,14 @@ export default function BonR() {
     );
   };
 
+  // const formatCurrency = (value: number) => {
+  //   return new Intl.NumberFormat("fr-FR", {
+  //     style: "currency",
+  //     currency: "TND",
+  //   }).format(value);
+  // };
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "TND",
-    }).format(value);
+    return `${value.toFixed(2)} ${t("TND")}`;
   };
 
   const handleSubmit = async () => {
@@ -172,34 +177,38 @@ export default function BonR() {
   return (
     <div className="page-container">
       <header className="page-header">
-        <h1 className="page-title">Nouveau Bon de retour</h1>
-        <p className="page-subtitle">Créez une retour de stock</p>
+        <h1 className="page-title">{t("new_bon_retour")}</h1>
+        <p className="page-subtitle">{t("create_return_stock")}</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Form Section */}
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-4 md:p-6 space-y-4">
-            <h2 className="font-semibold text-foreground">Informations</h2>
+            <h2 className="font-semibold text-foreground">
+              {t("information")}
+            </h2>
 
             <div className="space-y-2">
-              <Label htmlFor="lieu">Lieu *</Label>
+              <Label htmlFor="lieu">{t("place")} *</Label>
               <Input
                 id="lieu"
                 value={lieu}
                 onChange={(e) => setLieu(e.target.value)}
-                placeholder="Ex: Entrepôt B, Client ABC..."
+                placeholder={t("lieu_retour_produits")}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description (optionnel)</Label>
+              <Label htmlFor="description">
+                {t("description")} ({t("optionnel")})
+              </Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Motif de la retour..."
+                placeholder={t("return_reason")}
                 className=" resize-none "
               />
             </div>
@@ -208,12 +217,12 @@ export default function BonR() {
           {/* Product Selection */}
           <div className="bg-card rounded-xl border border-border p-4 md:p-6">
             <h2 className="font-semibold text-foreground mb-4">
-              Sélectionner des produits
+              {t("select_products")}
             </h2>
 
             {products.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">
-                Aucun produit en stock disponible
+                {t("no_product")}
               </p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -250,7 +259,7 @@ export default function BonR() {
                             {product.name}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatCurrency(product.price)} • Stock:{" "}
+                            {formatCurrency(product.price)} • {t("stock")}:{" "}
                             {product.quantity}
                           </p>
                         </div>
@@ -272,12 +281,12 @@ export default function BonR() {
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-4 md:p-6">
             <h2 className="font-semibold text-foreground mb-4">
-              Produits sélectionnés
+              {t("selected_products")}
             </h2>
 
             {selectedProducts.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                Cliquez sur les produits pour les ajouter
+                {t("click_to_add")}
               </p>
             ) : (
               <div className="space-y-3">
@@ -333,7 +342,9 @@ export default function BonR() {
           {/* Total & Save */}
           <div className="bg-card rounded-xl border border-border p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-lg font-medium text-foreground">Total</span>
+              <span className="text-lg font-medium text-foreground">
+                {t("total")}
+              </span>
               <span className="text-2xl font-bold text-primary">
                 {formatCurrency(calculateTotal())}
               </span>
@@ -345,7 +356,7 @@ export default function BonR() {
               size="lg"
             >
               <Save className="w-5 h-5" />
-              {saving ? "Enregistrement..." : "Enregistrer le bon"}
+              {saving ? t("saving") : t("save")}
             </Button>
           </div>
         </div>
