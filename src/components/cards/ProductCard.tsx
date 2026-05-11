@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import type { Product } from "@/db/types";
 import { cn } from "@/lib/utils";
 import { Edit, Package, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface ProductCardProps {
   product: Product;
@@ -10,17 +11,22 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "TND",
-    }).format(value);
-  };
+  const { t } = useTranslation();
 
+  // const formatCurrency = (value: number) => {
+  //   return new Intl.NumberFormat("fr-FR", {
+  //     style: "currency",
+  //     currency: "TND",
+  //   }).format(value);
+  // };
+  const formatCurrency = (value: number) => {
+    return `${value.toFixed(2)} ${t("TND")}`;
+  };
   const isLowStock = product.quantity < 10;
 
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden hover:shadow-soft transition-all duration-300 animate-fade-in">
+      {/* IMAGE */}
       <div className="relative h-40 bg-muted">
         {product.image ? (
           <img
@@ -33,28 +39,37 @@ export function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
             <Package className="w-12 h-12 text-muted-foreground/50" />
           </div>
         )}
+
+        {/* LOW STOCK BADGE */}
         {isLowStock && (
           <div className="absolute top-2 right-2 px-2 py-1 bg-warning text-warning-foreground text-xs font-medium rounded-full">
-            Stock faible
+            {t("low_stock")}
           </div>
         )}
       </div>
 
+      {/* CONTENT */}
       <div className="p-4">
+        {/* NAME */}
         <h3 className="font-semibold text-foreground truncate">
           {product.name}
         </h3>
+
+        {/* DESCRIPTION */}
         {product.description && (
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
             {product.description}
           </p>
         )}
 
+        {/* FOOTER */}
         <div className="flex items-center justify-between mt-4">
+          {/* PRICE + QTY */}
           <div>
             <p className="text-lg font-bold text-primary">
               {formatCurrency(product.price)}
             </p>
+
             <p
               className={cn(
                 "text-sm",
@@ -63,26 +78,28 @@ export function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
                   : "text-muted-foreground",
               )}
             >
-              Qté: {product.quantity}
+              {t("quantity")}: {product.quantity}
             </p>
           </div>
 
+          {/* ACTIONS */}
           <div className="flex gap-1">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onEdit(product)}
-              className="hover:bg-primary/10 hover:text-primary"
+              className="hover:bg-primary/10"
             >
-              <Edit className="w-6 h-6 text-green-600" />
+              <Edit className="w-5 h-5 text-green-600" />
             </Button>
+
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onDelete(product)}
-              className="hover:bg-destructive/10 hover:text-destructive"
+              className="hover:bg-destructive/10"
             >
-              <Trash2 className="w-6 h-6 text-red-500" />
+              <Trash2 className="w-5 h-5 text-red-500" />
             </Button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ProductCard } from "@/components/cards/ProductCard";
 import { ProductForm } from "@/components/forms/ProductForm";
@@ -15,11 +16,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
 import { productService } from "@/db/services/product.service";
 import type { Product } from "@/db/types";
 import { toast } from "sonner";
 
 export default function Products() {
+  const { t } = useTranslation();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,7 +52,7 @@ export default function Products() {
       setFilteredProducts(data);
     } catch (error) {
       console.error("Failed to load products:", error);
-      toast.error("Erreur lors du chargement des produits");
+      toast.error(t("product_load_error"));
     } finally {
       setLoading(false);
     }
@@ -70,10 +74,10 @@ export default function Products() {
 
     try {
       await productService.delete(deleteProduct.id);
-      toast.success("Produit supprimé");
+      toast.success(t("product_deleted"));
       loadProducts();
     } catch (error) {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("delete_error"));
     } finally {
       setDeleteProduct(null);
     }
@@ -91,43 +95,47 @@ export default function Products() {
 
   return (
     <div className="page-container">
+      {/* HEADER */}
       <header className="page-header">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="page-title">Produits</h1>
-            <p className="page-subtitle">{products.length} produits au total</p>
+            <h1 className="page-title">{t("products")}</h1>
+            <p className="page-subtitle">
+              {products.length} {t("products_total")}
+            </p>
           </div>
+
           <Button onClick={() => setShowForm(true)} className="gap-2">
             <Plus className="w-4 h-4" />
-            Ajouter un produit
+            {t("add_product")}
           </Button>
         </div>
       </header>
 
-      {/* Search */}
+      {/* SEARCH */}
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
         <Input
-          placeholder="Rechercher un produit..."
+          placeholder={t("search_product")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
         />
       </div>
 
-      {/* Products Grid */}
+      {/* EMPTY STATE */}
       {filteredProducts.length === 0 ? (
         <div className="text-center py-12">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
             <Search className="w-8 h-8 text-muted-foreground" />
           </div>
+
           <h3 className="text-lg font-medium text-foreground mb-1">
-            {searchQuery ? "Aucun résultat" : "Aucun produit"}
+            {searchQuery ? t("no_result") : t("no_product")}
           </h3>
+
           <p className="text-muted-foreground">
-            {searchQuery
-              ? "Essayez avec d'autres termes de recherche"
-              : "Commencez par ajouter votre premier produit"}
+            {searchQuery ? t("try_search") : t("start_add_product")}
           </p>
         </div>
       ) : (
@@ -143,7 +151,7 @@ export default function Products() {
         </div>
       )}
 
-      {/* Product Form Modal */}
+      {/* FORM */}
       {showForm && (
         <ProductForm
           product={editingProduct}
@@ -155,26 +163,26 @@ export default function Products() {
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* DELETE */}
       <AlertDialog
         open={!!deleteProduct}
         onOpenChange={() => setDeleteProduct(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
+            <AlertDialogTitle>{t("delete_product_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer "{deleteProduct?.name}" ? Cette
-              action est irréversible.
+              {t("delete_product_confirm")} "{deleteProduct?.name}"
             </AlertDialogDescription>
           </AlertDialogHeader>
+
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Supprimer
+              {t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
