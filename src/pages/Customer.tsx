@@ -17,8 +17,10 @@ import type { Customer } from "@/db/types";
 import { Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 export default function Customerr() {
+  const { t } = useTranslation();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredProducts, setFilteredCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,12 +95,14 @@ export default function Customerr() {
       <header className="page-header">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="page-title">Clients</h1>
-            <p className="page-subtitle">{customers.length} clients au total</p>
+            <h1 className="page-title">{t("customers")}</h1>
+            <p className="page-subtitle">
+              {customers.length} {t("total_customers")}
+            </p>
           </div>
           <Button onClick={() => setShowForm(true)} className="gap-2">
             <Plus className="w-4 h-4" />
-            Ajouter un client
+            {t("add_customer")}
           </Button>
         </div>
       </header>
@@ -107,7 +111,7 @@ export default function Customerr() {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
         <Input
-          placeholder="Rechercher un client..."
+          placeholder={t("search_customer")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -121,12 +125,10 @@ export default function Customerr() {
             <Search className="w-8 h-8 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-1">
-            {searchQuery ? "Aucun résultat" : "Aucun client"}
+            {searchQuery ? t("no_results") : t("no_customers")}
           </h3>
           <p className="text-muted-foreground">
-            {searchQuery
-              ? "Essayez avec d'autres termes de recherche"
-              : "Commencez par ajouter votre premier client"}
+            {searchQuery ? t("try_different_search") : t("add_first_customer")}
           </p>
         </div>
       ) : (
@@ -161,19 +163,19 @@ export default function Customerr() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce produit ?</AlertDialogTitle>
+            <AlertDialogTitle> {t("delete_customer_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer "{deleteCustomer?.name}" ?
-              Cette action est irréversible.
+              {t("delete_customer_confirm")} "{deleteCustomer?.name}" ?{" "}
+              {t("irreversible_action")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel> {t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Supprimer
+              {t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

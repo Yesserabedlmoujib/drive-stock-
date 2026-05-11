@@ -131,5 +131,6 @@
   "return_history_empty": "ستظهر سندات الإرجاع هنا",
   "delete_retour_confirm_message": "هل أنت متأكد من حذف سند الإرجاع هذا؟ هذا الإجراء لا يمكن التراجع عنه.",
   "delete_retour_title": "حذف سند الإرجاع؟",
-  "offline_mode_active": "وضع عدم الاتصال مفعل"
+  "offline_mode_active": "وضع عدم الاتصال مفعل",
+  "irreversible_action": "هذا الإجراء لا يمكن التراجع عنه."
 }
