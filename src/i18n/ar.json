@@ -15,14 +15,11 @@
   "total_value": "القيمة الإجمالية",
   "low_stock": "مخزون منخفض",
   "attention_required": "يتطلب الانتباه",
-
   "bons_sortie": "أذونات الخروج",
   "bons_livraison": "أذونات التسليم",
   "bons_retour": "أذونات الإرجاع",
-
   "sorties_7_days": "خروج (7 أيام)",
   "total": "المجموع",
-
   "quick_actions": "إجراءات سريعة",
   "manage_products": "إدارة المنتجات",
   "products_desc": "إضافة، تعديل أو حذف",
@@ -132,5 +129,17 @@
   "delete_retour_confirm_message": "هل أنت متأكد من حذف سند الإرجاع هذا؟ هذا الإجراء لا يمكن التراجع عنه.",
   "delete_retour_title": "حذف سند الإرجاع؟",
   "offline_mode_active": "وضع عدم الاتصال مفعل",
-  "irreversible_action": "هذا الإجراء لا يمكن التراجع عنه."
+  "irreversible_action": "هذا الإجراء لا يمكن التراجع عنه.",
+  "logout": "تسجيل الخروج",
+  "logout_success": "تم تسجيل الخروج بنجاح",
+  "login_success": "تم تسجيل الدخول بنجاح",
+  "something_went_wrong": "حدث خطأ ما",
+  "login_title": "تسجيل الدخول",
+  "login_description": "قم بتسجيل الدخول إلى حساب Drive Stock الخاص بك",
+  "email_label": "البريد الإلكتروني",
+  "email_placeholder": "البريد الإلكتروني",
+  "password_label": "كلمة المرور",
+  "password_placeholder": "••••••••",
+  "login_button": "تسجيل الدخول",
+  "signing_in": "جاري تسجيل الدخول..."
 }

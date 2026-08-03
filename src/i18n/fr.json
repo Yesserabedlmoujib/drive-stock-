@@ -15,14 +15,11 @@
   "total_value": "Valeur Totale",
   "low_stock": "Stock Faible",
   "attention_required": "Attention requise",
-
   "bons_sortie": "Bons de Sortie",
   "bons_livraison": "Bons de Livraison",
   "bons_retour": "Bons de Retour",
-
   "sorties_7_days": "Sorties (7 jours)",
   "total": "total",
-
   "quick_actions": "Actions rapides",
   "manage_products": "Gérer les produits",
   "products_desc": "Ajouter, modifier ou supprimer",
@@ -130,5 +127,17 @@
   "delete_retour_confirm_message": "Êtes-vous sûr de vouloir supprimer ce bon de retour ? Cette action est irréversible.",
   "delete_retour_title": "Supprimer ce bon de retour ?",
   "offline_mode_active": "Mode hors ligne actif",
-  "irreversible_action": "Cette action est irréversible."
+  "irreversible_action": "Cette action est irréversible.",
+  "logout": "Déconnexion",
+  "logout_success": "Déconnecté avec succès",
+  "login_success": "Connecté avec succès",
+  "something_went_wrong": "Quelque chose s'est mal passé",
+  "login_title": "Connexion",
+  "login_description": "Connectez-vous à votre compte Drive Stock",
+  "email_label": "Email",
+  "email_placeholder": "email@exemple.com",
+  "password_label": "Mot de passe",
+  "password_placeholder": "••••••••",
+  "login_button": "Se connecter",
+  "signing_in": "Connexion en cours..."
 }
