@@ -96,8 +96,10 @@ export function generateBonPDF(
   currentY += lineHeight;
 
   ///////////address//////////////////
-  doc.setFont("helvetica", "bold");
-  doc.text(com.address, 10 + columnLabelWidth, currentY, {
+   doc.setFont("times", "bold");
+  doc.text("Adresse:", 20, currentY);
+  doc.setFont("helvetica", "normal");
+  doc.text(com.address, 25 + columnLabelWidth, currentY, {
     charSpace: 0.3,
   });
   currentY += lineHeight;
