@@ -1,6 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -8,14 +6,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 import {
   companyProfileService,
   userProfileService,
 } from "@/db/services/profile.service";
 
-import { useEffect, useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 type UserState = {
@@ -31,6 +32,10 @@ type CompanyState = {
   phone: string;
   email: string;
   matriculeFiscale: string;
+
+  transporteurCoordonnees: string;
+  plaqueImmatriculation: string;
+
   logo?: string;
 };
 
@@ -52,6 +57,10 @@ export default function Profile() {
     phone: "",
     email: "",
     matriculeFiscale: "",
+
+    transporteurCoordonnees: "",
+    plaqueImmatriculation: "",
+
     logo: undefined,
   });
 
@@ -76,6 +85,13 @@ export default function Profile() {
           phone: c.phone,
           email: c.email ?? "",
           matriculeFiscale: c.matriculeFiscale,
+
+          transporteurCoordonnees:
+            c.transporteurCoordonnees ?? "",
+
+          plaqueImmatriculation:
+            c.plaqueImmatriculation ?? "",
+
           logo: c.logo,
         });
       }
@@ -205,6 +221,38 @@ export default function Profile() {
                     }
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>
+                    {t("transporteur_coordinates")}
+                  </Label>
+
+                  <Textarea
+                    value={company.transporteurCoordonnees}
+                    onChange={(e) =>
+                      setCompany({
+                        ...company,
+                        transporteurCoordonnees: e.target.value,
+                      })
+                    }
+                    placeholder={'-'}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>
+                    {t("vehicle_registration")}
+                  </Label>
+
+                  <Input
+                    value={company.plaqueImmatriculation}
+                    onChange={(e) =>
+                      setCompany({
+                        ...company,
+                        plaqueImmatriculation: e.target.value,
+                      })
+                    }
+                  />
+                </div>
               </div>
 
               <Button onClick={saveProfile} className="w-full">
@@ -264,6 +312,27 @@ export default function Profile() {
           <div>
             <p className="text-sm text-muted-foreground">{t("tax_id")}</p>
             <p className="font-medium">{company.matriculeFiscale || "-"}</p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {t("transporteur_coordinates")}
+            </p>
+
+            <p className="font-medium">
+              {company.transporteurCoordonnees || "-"}
+            </p>
+          </div>
+
+
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {t("vehicle_registration")}
+            </p>
+
+            <p className="font-medium">
+              {company.plaqueImmatriculation || "-"}
+            </p>
           </div>
         </div>
       </section>

@@ -1,10 +1,10 @@
+import type { BonDeSortie, CompanyProfile, UserProfile } from "@/db/types";
 import { FileOpener } from "@capacitor-community/file-opener";
+import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { Capacitor } from "@capacitor/core";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { BonDeSortie, CompanyProfile, UserProfile } from "@/db/types";
 
 // Synchronous PDF generator (unchanged)
 export function generateBonPDF(
@@ -83,14 +83,16 @@ export function generateBonPDF(
   ////////////Company Name ///////////////////////////
   doc.setFont("helvetica", "bold");
   (doc.text(com.companyName, 10 + columnLabelWidth, currentY),
-    {
-      charSpace: 0.3,
-    });
+  {
+    charSpace: 0.3,
+  });
   currentY += lineHeight;
 
   ///////////address//////////////////
+  doc.setFont("times", "bold");
+  doc.text("Addresse:", 20, currentY);
   doc.setFont("helvetica", "normal");
-  doc.text(com.address, 10 + columnLabelWidth, currentY);
+  doc.text(com.address, 26 + columnLabelWidth, currentY);
   currentY += lineHeight;
 
   ////////////MF//////////////
@@ -155,31 +157,52 @@ export function generateBonPDF(
   // doc.rect(cadreX, cadreY, cadreWidth, cadreHeight);
   doc.roundedRect(cadreX, cadreY, cadreWidth, cadreHeight, 3, 3, "D");
 
-  // Right side label
-  doc.text("Coordonnées du transporteur", 135, signatureY + 10);
+  // Transporteur information
+  doc.setFontSize(9);
 
-  // Right side line (shorter line for client)
-  const rightLineStartX = 140;
-  const rightLineEndX = 180;
-  const rightLineY = signatureY + 20;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(rightLineStartX, rightLineY, rightLineEndX, rightLineY);
+  doc.setFont("helvetica", "bold");
+  doc.text(
+    "Coordonnées du transporteur:",
+    135,
+    signatureY + 10
+  );
 
-  // Right side label
-  doc.text("N° de plaque d'immatriculation", 135, signatureY + 30);
+  doc.setFont("helvetica", "normal");
 
-  // Right side line (shorter line for client)
-  const rightLineStartx = 140;
-  const rightLineEndx = 180;
-  const rightLiney = signatureY + 40;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(rightLineStartx, rightLiney, rightLineEndx, rightLiney);
+  const transporteurLines = doc.splitTextToSize(
+    com.transporteurCoordonnees || "-",
+    45
+  );
+
+  doc.text(
+    transporteurLines,
+    135,
+    signatureY + 18
+  );
+
+
+  // Vehicle registration
+  doc.setFont("helvetica", "bold");
+
+  doc.text(
+    "N° de plaque d'immatriculation:",
+    135,
+    signatureY + 32
+  );
+
+  doc.setFont("helvetica", "normal");
+
+  doc.text(
+    com.plaqueImmatriculation || "-",
+    135,
+    signatureY + 40
+  );
 
   // Left side cadre (same dimensions as right side)
   const leftCadreX = 15; // Adjust to match right side position relative to content
   const leftCadreY = signatureY + 5; // Same Y position
   const leftCadreWidth = 60; // Same width
-  const leftCadreHeight = 38; // Same height
+  const leftCadreHeight = 45; // Same height
 
   // Draw the left cadre (border only, no fill)
   doc.setDrawColor(150, 150, 150); // Same grey color for the border
@@ -195,14 +218,24 @@ export function generateBonPDF(
   );
 
   // Left side label
-  doc.text("Nom et prénom d'expéditeur:", 22, signatureY + 13);
+doc.text("Nom et prénom d'expéditeur:", 22, signatureY + 13);
 
-  // Left side line (shorter line for client)
-  const leftLineStart = 25;
-  const leftLineEnd = 65;
-  const leftLineY = signatureY + 25;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(leftLineStart, leftLineY, leftLineEnd, leftLineY);
+// Sender name from profile
+doc.setFont("helvetica", "bold");
+doc.text(
+  us?.fullName || "-",
+  22,
+  signatureY + 22
+);
+
+// Signature line
+doc.setFont("helvetica", "normal");
+const leftLineStart = 25;
+const leftLineEnd = 65;
+const leftLineY = signatureY + 30;
+
+doc.setDrawColor(200, 200, 200);
+doc.line(leftLineStart, leftLineY, leftLineEnd, leftLineY);
 
   // Footer
   doc.setFontSize(8);

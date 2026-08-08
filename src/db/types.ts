@@ -9,13 +9,20 @@ export interface UserProfile {
 
 export interface CompanyProfile {
   id?: number;
+
   companyName: string;
   address: string;
   city: string;
   phone: string;
   email?: string;
   matriculeFiscale: string;
+
+  // Transport information
+  transporteurCoordonnees?: string;
+  plaqueImmatriculation?: string;
+
   logo?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
