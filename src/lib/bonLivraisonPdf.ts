@@ -90,8 +90,10 @@ export function generateBonPDF(
   currentY += lineHeight;
 
   ///////////address//////////////////
-  doc.setFont("helvetica", "bold");
-  doc.text(com.address, 10 + columnLabelWidth, currentY, {
+  doc.setFont("times", "bold");
+  doc.text("Addresse:", 20, currentY);
+  doc.setFont("helvetica", "normal");
+  doc.text(com.address, 26 + columnLabelWidth, currentY, {
     charSpace: 0.3,
   });
   currentY += lineHeight;
@@ -127,19 +129,29 @@ export function generateBonPDF(
 
   // Customer Address
   if (bon.customerAddress) {
-    doc.setFont("helvetica", "bold");
-    doc.text(bon.customerAddress, 125, destY, {
-      charSpace: 0.3,
-    });
-    destY += lineHeight;
+    doc.setFont("times", "bold");
+    doc.text("Adresse:", 125, destY);
+
+    doc.setFont("helvetica", "normal");
+
+    const addressLines = doc.splitTextToSize(
+      bon.customerAddress,
+      55
+    );
+
+    doc.text(addressLines, 140, destY);
+
+    destY += lineHeight * addressLines.length;
   }
 
-  // Customer MF (Matricule Fiscale)
+  // Customer MF
   if (bon.customerMF) {
     doc.setFont("times", "bold");
     doc.text("MF:", 125, destY);
+
     doc.setFont("helvetica", "normal");
     doc.text(bon.customerMF, 133, destY);
+
     destY += lineHeight;
   }
 
@@ -147,23 +159,15 @@ export function generateBonPDF(
   if (bon.customerTelephone) {
     doc.setFont("times", "bold");
     doc.text("Tél:", 125, destY);
+
     doc.setFont("helvetica", "normal");
     doc.text(bon.customerTelephone, 132, destY);
+
     destY += lineHeight;
   }
-  // Update newY for the table
-  newY = destY + 10; // Space before table
 
-  // Raison (optional - only if exists)
-  if (bon.lieu && bon.lieu.trim() !== "") {
-    doc.setFont("times", "bold");
-    doc.text("MF Client:", 120, newY);
-    doc.setFont("helvetica", "normal");
-    doc.text(bon.lieu, 128 + columnLabelWidth, newY);
-    newY += lineHeight + 10; // Extra space before table
-  } else {
-    newY += 10; // Space before table
-  }
+  // Space before table
+  newY = destY + 10;
 
   // Table (Option A: simple columns, totals below)
   const tableData = bon.items.map((item, index) => [
@@ -178,7 +182,7 @@ export function generateBonPDF(
     // head: [["N°", "Désignation", "Qté", "P.U.HT", "Total HT"]],
     head: [["Code", "Désignation", "Quantité", "Prix Unitaire", "Montant"]],
     body: tableData,
-    startY: com.phone ? 80 : 100,
+    startY: newY,
     theme: "grid",
     headStyles: {
       fillColor: [59, 77, 143],
