@@ -53,25 +53,80 @@ export function generateBonPDF(
   };
 
   // Header
+  // Header
+  const logoX = 20;
+  const logoY = 10;
+  const logoWidth = 30;
+  const logoHeight = 20;
+
+  // Company logo
+  if (com.logo) {
+    try {
+      doc.addImage(
+        com.logo,
+        "PNG",
+        logoX,
+        logoY,
+        logoWidth,
+        logoHeight,
+        undefined,
+        "FAST",
+      );
+    } catch (error) {
+      console.warn("Unable to add company logo to PDF:", error);
+    }
+  }
+
+  // Company name
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+
+  doc.text(
+    com.companyName || "Entreprise",
+    55,
+    18,
+  );
+
+  // PDF title
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("BON DE SORTIE ", 105, 20, { align: "center", charSpace: 0.5 });
 
+  doc.text(
+    "BON DE SORTIE",
+    105,
+    35,
+    {
+      align: "center",
+      charSpace: 0.5,
+    },
+  );
+
+  // Number and date
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`N° ${bon.number || bon.id}`, 20, 35);
 
-  doc.text(`Fait à ${bon.lieu} le ${formatDate(bon.createdAt)}`, 190, 35, {
-    align: "right",
-  });
+  doc.text(
+    `N° ${bon.number || bon.id}`,
+    20,
+    45,
+  );
+
+  doc.text(
+    `Fait à ${bon.lieu} le ${formatDate(bon.createdAt)}`,
+    190,
+    45,
+    {
+      align: "right",
+    },
+  );
 
   // Line
   doc.setDrawColor(200, 200, 200);
-  doc.line(20, 38, 190, 38);
+  doc.line(20, 48, 190, 48);
 
   // Client Information Section
   const lineHeight = 6; // Reduced spacing for compact layout
-  let currentY = 50;
+  let currentY = 57;
 
   doc.setFontSize(10);
 
@@ -81,12 +136,12 @@ export function generateBonPDF(
   // Check if company profile exists and has address
 
   ////////////Company Name ///////////////////////////
-  doc.setFont("helvetica", "bold");
-  (doc.text(com.companyName, 10 + columnLabelWidth, currentY),
-  {
-    charSpace: 0.3,
-  });
-  currentY += lineHeight;
+  // doc.setFont("helvetica", "bold");
+  // (doc.text(com.companyName, 10 + columnLabelWidth, currentY),
+  // {
+  //   charSpace: 0.3,
+  // });
+  // currentY += lineHeight;
 
   ///////////address//////////////////
   doc.setFont("times", "bold");
@@ -218,24 +273,24 @@ export function generateBonPDF(
   );
 
   // Left side label
-doc.text("Nom et prénom d'expéditeur:", 22, signatureY + 13);
+  doc.text("Nom et prénom d'expéditeur:", 22, signatureY + 13);
 
-// Sender name from profile
-doc.setFont("helvetica", "bold");
-doc.text(
-  us?.fullName || "-",
-  22,
-  signatureY + 22
-);
+  // Sender name from profile
+  doc.setFont("helvetica", "bold");
+  doc.text(
+    us?.fullName || "-",
+    22,
+    signatureY + 22
+  );
 
-// Signature line
-doc.setFont("helvetica", "normal");
-const leftLineStart = 25;
-const leftLineEnd = 65;
-const leftLineY = signatureY + 30;
+  // Signature line
+  doc.setFont("helvetica", "normal");
+  const leftLineStart = 25;
+  const leftLineEnd = 65;
+  const leftLineY = signatureY + 30;
 
-doc.setDrawColor(200, 200, 200);
-doc.line(leftLineStart, leftLineY, leftLineEnd, leftLineY);
+  doc.setDrawColor(200, 200, 200);
+  doc.line(leftLineStart, leftLineY, leftLineEnd, leftLineY);
 
   // Footer
   doc.setFontSize(8);
