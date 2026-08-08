@@ -38,7 +38,25 @@ type CompanyState = {
 
   logo?: string;
 };
+const fileToDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
 
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Failed to read image"));
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Failed to read image"));
+    };
+
+    reader.readAsDataURL(file);
+  });
+};
 export default function Profile() {
   const { t } = useTranslation();
 
@@ -49,7 +67,6 @@ export default function Profile() {
     phone: "",
     image: undefined,
   });
-
   const [company, setCompany] = useState<CompanyState>({
     companyName: "",
     address: "",
@@ -57,10 +74,8 @@ export default function Profile() {
     phone: "",
     email: "",
     matriculeFiscale: "",
-
     transporteurCoordonnees: "",
     plaqueImmatriculation: "",
-
     logo: undefined,
   });
 
@@ -178,6 +193,71 @@ export default function Profile() {
                     }
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Logo</Label>
+
+                  <Input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+
+                      if (!file) return;
+
+                      try {
+                        // Optional size limit: 2 MB
+                        if (file.size > 2 * 1024 * 1024) {
+                          toast({
+                            variant: "destructive",
+                            title: t("error"),
+                            description: "Logo must be smaller than 2 MB.",
+                          });
+
+                          e.target.value = "";
+                          return;
+                        }
+
+                        const logoDataUrl = await fileToDataUrl(file);
+
+                        setCompany((prev) => ({
+                          ...prev,
+                          logo: logoDataUrl,
+                        }));
+                      } catch (error) {
+                        console.error("Error reading logo:", error);
+
+                        toast({
+                          variant: "destructive",
+                          title: t("error"),
+                          description: t("error_message"),
+                        });
+                      }
+                    }}
+                  />
+
+                  {company.logo && (
+                    <div className="mt-3 flex items-center gap-4">
+                      <img
+                        src={company.logo}
+                        alt="Company logo"
+                        className="h-20 w-20 rounded-lg border object-contain bg-white p-2"
+                      />
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setCompany((prev) => ({
+                            ...prev,
+                            logo: undefined,
+                          }))
+                        }
+                      >
+                        Remove logo
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-2">
                   <Label>{t("address")}</Label>
@@ -287,6 +367,20 @@ export default function Profile() {
         <h2 className="text-xl font-semibold mb-4 text-cyan-600">
           {t("company")}
         </h2>
+        {company.logo && (
+          <div className="mb-6 flex items-center gap-4">
+            <img
+              src={company.logo}
+              alt="Company logo"
+              className="h-24 w-24 rounded-lg border object-contain bg-white p-2"
+            />
+
+            <div>
+              <p className="text-sm text-muted-foreground">Logo</p>
+              <p className="font-medium">Logo de l'entreprise</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
