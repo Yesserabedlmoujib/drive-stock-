@@ -65,7 +65,7 @@ export interface BonDeSortieItem {
 
   // legacy / compatibility fields used elsewhere in the UI
   unitPrice?: number; // alias for unitPriceHT
-  totalPrice?: number; // alias for totalTTC
+  totalPrice?: number; // alias for totalHT
 }
 
 export interface BonDeSortie {

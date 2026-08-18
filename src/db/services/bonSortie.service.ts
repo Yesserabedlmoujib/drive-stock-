@@ -28,7 +28,7 @@ export const bonDeSortieService = {
     const itemsWithAliases: BonDeSortieItem[] = bonDeSortie.items.map((i) => ({
       ...i,
       unitPrice: i.unitPriceHT,
-      totalPrice: i.totalTTC,
+      totalPrice: i.totalHT,
     }));
 
     const bonToSave: Omit<BonDeSortie, "id" | "createdAt"> = {

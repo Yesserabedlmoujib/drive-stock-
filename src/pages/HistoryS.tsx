@@ -212,12 +212,12 @@ export default function HistoryS() {
                             <td className="p-3 text-center">{item.quantity}</td>
                             <td className="p-3 text-right">
                               {formatCurrency(
-                                item.unitPrice ?? item.unitPriceHT ?? 0,
+                                item.unitPriceHT ?? item.unitPrice ?? 0,
                               )}
                             </td>
                             <td className="p-3 text-right font-medium">
                               {formatCurrency(
-                                item.totalPrice ?? item.totalHT ?? 0,
+                                item.totalHT ?? item.totalPrice ?? 0,
                               )}
                             </td>
                           </tr>
