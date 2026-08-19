@@ -33,6 +33,8 @@
   "address": "العنوان",
   "city": "المدينة",
   "tax_id": "المعرف الجبائي",
+  "transporteur_coordinates": "بيانات الناقل",
+  "vehicle_registration": "رقم لوحة التسجيل",
   "save": "حفظ",
   "success": "نجاح",
   "profile_saved": "تم حفظ الملف بنجاح",

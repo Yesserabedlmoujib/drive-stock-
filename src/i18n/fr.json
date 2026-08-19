@@ -33,6 +33,8 @@
   "address": "Adresse",
   "city": "Ville",
   "tax_id": "Matricule fiscale",
+  "transporteur_coordinates": "Coordonnées du transporteur",
+  "vehicle_registration": "N° de plaque d'immatriculation",
   "save": "Enregistrer",
   "success": "Succès",
   "profile_saved": "Profil enregistré avec succès",
