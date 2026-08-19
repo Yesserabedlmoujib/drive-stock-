@@ -210,13 +210,13 @@ export default function History() {
                             <td className="p-3 text-center">{item.quantity}</td>
                             <td className="p-3 text-right">
                               {formatCurrency(
-                                item.unitPrice ?? item.unitPriceHT ?? 0,
+                                item.unitPriceHT ?? item.unitPrice ?? 0,
                               )}
                             </td>
                             <td className="p-3 text-right font-medium">
-                              {formatCurrency(
-                                item.totalPrice ?? item.totalHT ?? 0,
-                              )}
+                              {/* totalPrice est l'alias de totalTTC : le lire
+                                  ici afficherait du TTC sous un titre HT. */}
+                              {formatCurrency(item.totalHT ?? 0)}
                             </td>
                           </tr>
                         ))}
