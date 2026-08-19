@@ -1,12 +1,56 @@
+import type { BonDeLivraison, CompanyProfile, UserProfile } from "@/db/types";
+import {
+  bonLivraisonControlCode,
+  buildBonLivraisonQrText,
+  LIVRAISON_QR_MAX_MODULES,
+} from "@/lib/bonLivraisonQr";
+import { drawQrCode, encodeQr, type QrSymbol } from "@/lib/pdfQrCode";
 import { FileOpener } from "@capacitor-community/file-opener";
+import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { Capacitor } from "@capacitor/core";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { BonDeLivraison, CompanyProfile, UserProfile } from "@/db/types";
 
-// Synchronous PDF generator (unchanged)
+/* -------------------------------------------------------------------------- */
+/*  Mise en page — bon de livraison tunisien (A4 portrait, mm)                 */
+/* -------------------------------------------------------------------------- */
+/*
+ * Même système que le bon de sortie : carte identité à gauche, colonne de titre
+ * au centre, QR à droite, en-tête et pied redessinés sur chaque page. Ce qui
+ * change tient à la nature du document — il est valorisé et il a un
+ * destinataire : bloc client, colonnes de prix, récapitulatif HT / TVA / TTC et
+ * deux emplacements de signature.
+ */
+
+const PAGE_W = 210;
+const PAGE_H = 297;
+const M = 15; // marge gauche / droite
+const RIGHT = PAGE_W - M; // 195
+const CONTENT_W = PAGE_W - 2 * M; // 180
+
+const FOOTER_H = 22; // bandeau réservé en bas de page
+
+// Espace insécable : présent dans l'encodage WinAnsi de jsPDF. Désigné par son
+// point de code, l'écrire tel quel rendrait la source illisible.
+const NB = String.fromCharCode(0x00a0);
+
+// Espaces qu'Intl peut glisser dans un nombre et dont jsPDF n'a pas le glyphe :
+// laissées telles quelles, elles s'impriment en carrés vides.
+const THIN_SPACES = [0x202f, 0x2009].map((c) => String.fromCharCode(c));
+
+type RGB = [number, number, number];
+
+const INK: RGB = [33, 37, 41];
+const MUTED: RGB = [110, 116, 124];
+const HAIRLINE: RGB = [176, 183, 191];
+const ACCENT: RGB = [59, 77, 143];
+const ZEBRA: RGB = [245, 247, 250];
+
+/* -------------------------------------------------------------------------- */
+/*  Générateur synchrone                                                       */
+/* -------------------------------------------------------------------------- */
+
 export function generateBonPDF(
   bon: BonDeLivraison,
   com: CompanyProfile,
@@ -14,312 +58,663 @@ export function generateBonPDF(
 ): jsPDF {
   const doc = new jsPDF();
 
-  const formatDate = (date: Date) =>
+  /* ----- Helpers ---------------------------------------------------------- */
+
+  /** Renvoie une chaîne sûre : jamais undefined/null (doc.text lève sinon). */
+  const txt = (v: unknown): string =>
+    v === undefined || v === null ? "" : String(v).trim();
+
+  const has = (v: unknown): boolean => txt(v).length > 0;
+
+  const toDate = (d: Date | string | number): Date =>
+    d instanceof Date ? d : new Date(d);
+
+  const formatDate = (d: Date | string | number) =>
     new Intl.DateTimeFormat("fr-FR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-    }).format(new Date(date));
+    }).format(toDate(d));
 
-  const drawHeader = (doc: jsPDF) => {
-    doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
-    doc.text("BON DE LIVRAISON", 105, 20, { align: "center", charSpace: 0.5 });
+  const winAnsiSpaces = (s: string) =>
+    THIN_SPACES.reduce((acc, space) => acc.split(space).join(NB), s);
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`N° ${bon.number || bon.id}`, 20, 35);
-    // doc.text(`Date: ${formatDate(bon.createdAt)}`, 190, 35, {
-    //   align: "right",
-    // });
-    doc.text(`Fait à ${bon.lieu} le ${formatDate(bon.createdAt)}`, 190, 35, {
-      align: "right",
-    });
-
-    doc.setDrawColor(200, 200, 200);
-    doc.line(20, 38, 190, 38);
+  const formatQty = (value: unknown) => {
+    const n = typeof value === "number" ? value : parseFloat(String(value));
+    return winAnsiSpaces(
+      new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 3 }).format(
+        Number.isFinite(n) ? n : 0,
+      ),
+    );
   };
 
-  const drawFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
-    const pageHeight = doc.internal.pageSize.height;
+  /** Montant nu : 3 décimales, les millimes ne se tronquent pas. */
+  const formatMoney = (value: unknown) => {
+    const n = typeof value === "number" ? value : parseFloat(String(value));
+    return winAnsiSpaces(
+      new Intl.NumberFormat("fr-FR", {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      }).format(Number.isFinite(n) ? n : 0),
+    );
+  };
 
-    doc.setFontSize(8);
+  const setColor = (c: RGB) => doc.setTextColor(c[0], c[1], c[2]);
+  const setStroke = (c: RGB) => doc.setDrawColor(c[0], c[1], c[2]);
+  const setFill = (c: RGB) => doc.setFillColor(c[0], c[1], c[2]);
+
+  /**
+   * Découpe la valeur en fonction de la largeur réellement occupée par
+   * l'étiquette. Ne dessine rien : sert à mesurer avant de tracer un cadre.
+   */
+  const wrapLabelValue = (
+    label: string,
+    value: string,
+    maxWidth: number,
+    size = 8.5,
+  ) => {
+    doc.setFontSize(size);
+    doc.setFont("helvetica", "bold");
+    const labelW = doc.getTextWidth(label) + 1.5;
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(128, 128, 128);
+    const lines: string[] = doc.splitTextToSize(
+      value,
+      Math.max(12, maxWidth - labelW),
+    );
+    return { labelW, lines };
+  };
 
-    doc.text("Document généré par StockFlow", 105, pageHeight - 10, {
+  /** Étiquette en gras + valeur en normal, renvoie le nombre de lignes tracées. */
+  const labelValue = (
+    label: string,
+    value: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    size = 8.5,
+  ) => {
+    const { labelW, lines } = wrapLabelValue(label, value, maxWidth, size);
+    doc.setFontSize(size);
+    doc.setFont("helvetica", "bold");
+    setColor(INK);
+    doc.text(label, x, y);
+    doc.setFont("helvetica", "normal");
+    setColor(MUTED);
+    doc.text(lines, x + labelW, y);
+    return lines.length;
+  };
+
+  /* ----- Données société (tous les champs sont facultatifs en base) -------- */
+
+  const companyName = has(com.companyName)
+    ? txt(com.companyName)
+    : "Votre entreprise";
+
+  const addressFull = [txt(com.address), txt(com.city)]
+    .filter((s) => s.length > 0)
+    .join(" – ");
+
+  const identity: Array<[string, string]> = [];
+  if (has(addressFull)) identity.push([`Adresse${NB}:`, addressFull]);
+  if (has(com.matriculeFiscale))
+    identity.push([`M.F.${NB}:`, txt(com.matriculeFiscale)]);
+  if (has(com.phone)) identity.push([`Tél.${NB}:`, txt(com.phone)]);
+  if (has(com.email)) identity.push([`E-mail${NB}:`, txt(com.email)]);
+
+  /* ----- Logo : ratio préservé, type sniffé (le "PNG" codé en dur ment) --- */
+
+  const LOGO_MAX_W = 20;
+  const LOGO_MAX_H = 14;
+  let logo: { data: string; format: string; w: number; h: number } | null =
+    null;
+
+  if (has(com.logo)) {
+    try {
+      const props = doc.getImageProperties(com.logo as string);
+      const ratio = props.height / props.width;
+      let w = LOGO_MAX_W;
+      let h = w * ratio;
+      if (h > LOGO_MAX_H) {
+        h = LOGO_MAX_H;
+        w = h / ratio;
+      }
+      logo = { data: com.logo as string, format: props.fileType, w, h };
+    } catch (error) {
+      // Type non supporté (SVG/TIFF) ou data-URL non base64 : on continue sans.
+      console.warn("Logo ignoré dans le PDF :", error);
+    }
+  }
+
+  /* ----- Géométrie de l'en-tête (identique sur toutes les pages) ---------- */
+
+  // Plus étroite que sur le bon de sortie : « BON DE LIVRAISON » réclame sa
+  // place au centre, et la carte reste assez large pour l'adresse.
+  const IDENT_X = M;
+  const IDENT_Y = 12;
+  const IDENT_W = 86;
+  const identTextX = IDENT_X + 4 + (logo ? LOGO_MAX_W + 4 : 0);
+  const identNameY = IDENT_Y + 8;
+  const identFirstLineY = IDENT_Y + 15;
+  const IDENT_LINE_STEP = 4.6;
+
+  const identInnerW = IDENT_X + IDENT_W - 4 - identTextX;
+
+  // Une valeur longue passe à la ligne : la hauteur du cadre suit.
+  const identityLines = identity.reduce(
+    (n, [label, value]) => n + wrapLabelValue(label, value, identInnerW).lines.length,
+    0,
+  );
+
+  const identTextBottom =
+    identityLines > 0
+      ? identFirstLineY + (identityLines - 1) * IDENT_LINE_STEP
+      : identNameY;
+  const identLogoBottom = logo ? IDENT_Y + 4 + logo.h : IDENT_Y;
+  const IDENT_H = Math.max(identTextBottom, identLogoBottom) - IDENT_Y + 5;
+
+  /* ----- QR code : le bon lui-même, lisible hors ligne -------------------- */
+
+  // Un cran plus large que sur le bon de sortie : la charge utile est plus
+  // longue (destinataire, montant), la grille plus dense, le module imprimé
+  // resterait sinon en dessous de ce qu'un téléphone lit au bord de la route.
+  const QR_SIZE = 24;
+  const QR_X = RIGHT - QR_SIZE;
+  const QR_Y = IDENT_Y;
+  const QR_CAPTION_Y = QR_Y + QR_SIZE + 3.5;
+
+  let qr: QrSymbol | null = null;
+  let controlCode = "";
+
+  try {
+    controlCode = bonLivraisonControlCode(bon, com);
+    qr = encodeQr(
+      buildBonLivraisonQrText(bon, com),
+      LIVRAISON_QR_MAX_MODULES,
+    );
+  } catch (error) {
+    // Le bon doit sortir même sans QR : la marchandise, elle, part quand même.
+    console.warn("QR code ignoré dans le PDF :", error);
+    qr = null;
+  }
+
+  const qrBottom = qr ? QR_CAPTION_Y : IDENT_Y;
+
+  const RULE_Y = Math.max(IDENT_Y + IDENT_H, qrBottom, 46) + 5;
+  const HEADER_H = RULE_Y + 6; // = margin.top des pages de continuation
+
+  const docNumber = has(bon.number) ? txt(bon.number) : txt(bon.id);
+  const dateline = has(bon.lieu)
+    ? `Fait à ${txt(bon.lieu)}, le ${formatDate(bon.createdAt)}`
+    : `Le ${formatDate(bon.createdAt)}`;
+
+  /* ----- Bloc titre : ce que le QR laisse comme largeur ------------------- */
+
+  const TITLE = "BON DE LIVRAISON";
+  const SUBTITLE = "Document accompagnant la marchandise livrée";
+  const TITLE_CHAR_SPACE = 0.6;
+
+  // Colonne du milieu : entre le cadre identité et le QR. Son axe, et non celui
+  // de la page, sert de repère commun au titre et à tout ce qui le suit.
+  const titleLeft = IDENT_X + IDENT_W;
+  const titleRight = qr ? QR_X - 4 : RIGHT;
+  const titleCx = (titleLeft + titleRight) / 2;
+  const titleMaxW = titleRight - titleLeft - 4;
+
+  /** Plus grande taille (par pas de 0,5 pt) à laquelle le texte tient. */
+  const fitFontSize = (
+    text: string,
+    maxWidth: number,
+    style: "bold" | "normal",
+    from: number,
+    to: number,
+    charSpace = 0,
+  ) => {
+    doc.setFont("helvetica", style);
+    for (let size = from; size > to; size -= 0.5) {
+      doc.setFontSize(size);
+      if (doc.getTextWidth(text) + charSpace * text.length <= maxWidth) {
+        return size;
+      }
+    }
+    return to;
+  };
+
+  const titleSize = fitFontSize(
+    TITLE,
+    titleMaxW,
+    "bold",
+    17,
+    11,
+    TITLE_CHAR_SPACE,
+  );
+  const subtitleSize = fitFontSize(SUBTITLE, titleMaxW, "normal", 7, 5.5);
+  const numberSize = fitFontSize(
+    `N°${NB}${docNumber}`,
+    titleMaxW,
+    "bold",
+    10,
+    7,
+  );
+  const datelineSize = fitFontSize(dateline, titleMaxW, "normal", 9, 6.5);
+
+  /* ----- En-tête de page -------------------------------------------------- */
+
+  const drawPageHeader = () => {
+    // Cadre identité société
+    setStroke(HAIRLINE);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(IDENT_X, IDENT_Y, IDENT_W, IDENT_H, 2, 2, "D");
+
+    if (logo) {
+      try {
+        doc.addImage(
+          logo.data,
+          logo.format,
+          IDENT_X + 4,
+          IDENT_Y + 4,
+          logo.w,
+          logo.h,
+          "companyLogo",
+          "FAST",
+        );
+      } catch (error) {
+        console.warn("Logo ignoré dans le PDF :", error);
+      }
+    }
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    setColor(INK);
+    doc.text(
+      doc.splitTextToSize(companyName, identInnerW)[0] as string,
+      identTextX,
+      identNameY,
+    );
+
+    let identY = identFirstLineY;
+    identity.forEach(([label, value]) => {
+      const drawn = labelValue(label, value, identTextX, identY, identInnerW);
+      identY += drawn * IDENT_LINE_STEP;
+    });
+
+    // Titre + références (colonne du centre)
+    doc.setFontSize(titleSize);
+    doc.setFont("helvetica", "bold");
+    setColor(ACCENT);
+    // jsPDF mesure les polices standard sans tenir compte du charSpace : avec
+    // align "center" le titre lettré partirait vers la droite du sous-titre.
+    // On calcule donc l'encombrement réel et on centre nous-mêmes.
+    const titleW =
+      doc.getTextWidth(TITLE) + TITLE_CHAR_SPACE * (TITLE.length - 1);
+    doc.text(TITLE, titleCx - titleW / 2, IDENT_Y + 9, {
+      charSpace: TITLE_CHAR_SPACE,
+    });
+
+    doc.setFontSize(subtitleSize);
+    doc.setFont("helvetica", "normal");
+    setColor(MUTED);
+    doc.text(SUBTITLE, titleCx, IDENT_Y + 14, { align: "center" });
+
+    doc.setFontSize(numberSize);
+    doc.setFont("helvetica", "bold");
+    setColor(INK);
+    doc.text(`N°${NB}${docNumber}`, titleCx, IDENT_Y + 23, {
       align: "center",
     });
 
-    doc.text(`Page ${pageNumber} / ${totalPages}`, 190, pageHeight - 10, {
+    doc.setFontSize(datelineSize);
+    doc.setFont("helvetica", "normal");
+    setColor(MUTED);
+    doc.text(dateline, titleCx, IDENT_Y + 29, { align: "center" });
+
+    // QR code + code de contrôle (colonne de droite)
+    if (qr) {
+      drawQrCode(doc, qr, { x: QR_X, y: QR_Y, size: QR_SIZE });
+
+      if (controlCode) {
+        doc.setFontSize(6);
+        doc.setFont("helvetica", "normal");
+        setColor(MUTED);
+        doc.text(
+          `Contrôle${NB}: ${controlCode}`,
+          QR_X + QR_SIZE / 2,
+          QR_CAPTION_Y,
+          { align: "center" },
+        );
+      }
+    }
+
+    // Filet de séparation
+    setStroke(ACCENT);
+    doc.setLineWidth(0.6);
+    doc.line(M, RULE_Y, RIGHT, RULE_Y);
+  };
+
+  /* ----- Pied de page ----------------------------------------------------- */
+
+  const footerLine = [
+    companyName,
+    has(com.matriculeFiscale)
+      ? `M.F.${NB}: ${txt(com.matriculeFiscale)}`
+      : "",
+    addressFull,
+    has(com.phone) ? `Tél.${NB}: ${txt(com.phone)}` : "",
+  ]
+    .filter((s) => s.length > 0)
+    .join("  –  ");
+
+  const drawPageFooter = (pageNumber: number, totalPages: number) => {
+    setStroke(HAIRLINE);
+    doc.setLineWidth(0.3);
+    doc.line(M, PAGE_H - 16, RIGHT, PAGE_H - 16);
+
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    setColor(MUTED);
+
+    const lines: string[] = doc.splitTextToSize(footerLine, CONTENT_W - 30);
+    doc.text(lines[0] ?? "", PAGE_W / 2, PAGE_H - 11, { align: "center" });
+
+    doc.text(`Page ${pageNumber} / ${totalPages}`, RIGHT, PAGE_H - 11, {
       align: "right",
     });
   };
 
-  const formatCurrency = (value: number) => {
-    // First ensure value is a proper number
-    const numValue = typeof value === "string" ? parseFloat(value) : value;
+  /* ----- Transport / Destinataire (page 1 seulement) ---------------------- */
 
-    // For TND: 3 decimal places, space as thousands separator, comma as decimal
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "TND",
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-      useGrouping: true,
-    })
-      .format(numValue)
-      .replace(/\u202F/g, " "); // Replace non-breaking space with regular space if needed
+  const BOX_GAP = 6;
+  const BOX_W = (CONTENT_W - BOX_GAP) / 2;
+  const BOX_PAD = 4;
+  const BOX_INNER = BOX_W - 2 * BOX_PAD;
+  const BOX_LINE = 4.6;
+
+  const transportRows: Array<[string, string]> = [
+    [
+      `Transporteur${NB}:`,
+      has(com.transporteurCoordonnees) ? txt(com.transporteurCoordonnees) : "—",
+    ],
+    [
+      `Plaque${NB}:`,
+      has(com.plaqueImmatriculation) ? txt(com.plaqueImmatriculation) : "—",
+    ],
+  ];
+
+  const customerAddress = [txt(bon.customerAddress), txt(bon.customerVille)]
+    .filter((s) => s.length > 0)
+    .join(" – ");
+
+  const destinataireRows: Array<[string, string]> = [];
+  if (has(customerAddress))
+    destinataireRows.push([`Adresse${NB}:`, customerAddress]);
+  if (has(bon.customerMF))
+    destinataireRows.push([`M.F.${NB}:`, txt(bon.customerMF)]);
+  if (has(bon.customerTelephone))
+    destinataireRows.push([`Tél.${NB}:`, txt(bon.customerTelephone)]);
+
+  // Le nom du client : saisi nommément, ou à défaut la destination du bon.
+  const destinataire = has(bon.customerName)
+    ? txt(bon.customerName)
+    : has(bon.destination)
+      ? txt(bon.destination)
+      : "—";
+
+  /** Hauteur d'un cadre titré, une fois les valeurs repliées. */
+  const measureBox = (headline: string, rows: Array<[string, string]>) => {
+    const wrapped = rows.reduce(
+      (n, [label, value]) =>
+        n + wrapLabelValue(label, value, BOX_INNER).lines.length,
+      0,
+    );
+    const headlineLines = headline
+      ? (doc.splitTextToSize(headline, BOX_INNER) as string[]).length
+      : 0;
+    return 7 + headlineLines * 5 + wrapped * BOX_LINE + 3;
   };
 
-  // Client Information Section
-  const lineHeight = 6; // Reduced spacing for compact layout
-  let currentY = 54;
-  let newY = 48;
+  const BOX_H = Math.max(
+    measureBox("", transportRows),
+    measureBox(destinataire, destinataireRows),
+    26,
+  );
 
-  doc.setFontSize(10);
+  const drawTitledBox = (
+    x: number,
+    y: number,
+    title: string,
+    headline: string,
+    rows: Array<[string, string]>,
+  ) => {
+    setStroke(HAIRLINE);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, BOX_W, BOX_H, 2, 2, "D");
 
-  // Client info lines with proper alignment
-  const columnLabelWidth = 10; // Fixed width for labels - RENAMED
-
-  ////////////Company Name ///////////////////////////
-  doc.setFont("helvetica", "bold");
-  doc.text(com.companyName, 10 + columnLabelWidth, currentY, {
-    charSpace: 0.3,
-  });
-  currentY += lineHeight;
-
-  ///////////address//////////////////
-  doc.setFont("times", "bold");
-  doc.text("Adresse:", 20, currentY);
-  doc.setFont("helvetica", "normal");
-  doc.text(com.address, 25 + columnLabelWidth, currentY, {
-    charSpace: 0.3,
-  });
-  currentY += lineHeight;
-
-  ////////////MF//////////////
-  doc.setFont("times", "bold");
-  doc.text("MF:", 20, currentY);
-  doc.setFont("helvetica", "normal");
-  doc.text(com.matriculeFiscale, 18 + columnLabelWidth, currentY);
-  currentY += lineHeight;
-
-  //////GSM//////////////
-  doc.setFont("times", "bold");
-  doc.text("Tél:", 20, currentY);
-  doc.setFont("italic", "normal");
-  doc.text(com.phone, 17 + columnLabelWidth, currentY);
-  currentY += lineHeight + 10;
-
-  let destY = newY;
-
-  doc.setFont("times", "bold");
-  doc.text("Destinataire:", 120, newY);
-  destY += lineHeight;
-
-  // Customer Name
-  if (bon.customerName) {
+    doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text(bon.customerName, 125, destY, {
-      charSpace: 0.3,
+    setColor(ACCENT);
+    doc.text(title.toUpperCase(), x + BOX_PAD, y + 5, {
+      charSpace: 0.4,
     });
-    destY += lineHeight;
-  }
 
-  // Customer Address
-  if (bon.customerAddress) {
-    doc.setFont("times", "bold");
-    doc.text("Adresse:", 125, destY);
+    let rowY = y + 11;
 
-    doc.setFont("helvetica", "normal");
+    if (headline) {
+      doc.setFontSize(9.5);
+      doc.setFont("helvetica", "bold");
+      setColor(INK);
+      const lines = doc.splitTextToSize(headline, BOX_INNER) as string[];
+      doc.text(lines, x + BOX_PAD, rowY);
+      rowY += lines.length * 5;
+    }
 
-    const addressLines = doc.splitTextToSize(
-      bon.customerAddress,
-      55
-    );
+    for (const [label, value] of rows) {
+      const drawn = labelValue(label, value, x + BOX_PAD, rowY, BOX_INNER);
+      rowY += drawn * BOX_LINE;
+    }
+  };
 
-    doc.text(addressLines, 140, destY);
+  const BOXES_Y = HEADER_H;
 
-    destY += lineHeight * addressLines.length;
-  }
+  drawTitledBox(M, BOXES_Y, "Transport", "", transportRows);
+  drawTitledBox(
+    M + BOX_W + BOX_GAP,
+    BOXES_Y,
+    "Destinataire",
+    destinataire,
+    destinataireRows,
+  );
 
-  // Customer MF
-  if (bon.customerMF) {
-    doc.setFont("times", "bold");
-    doc.text("MF:", 125, destY);
+  /* ----- Tableau des articles --------------------------------------------- */
 
-    doc.setFont("helvetica", "normal");
-    doc.text(bon.customerMF, 133, destY);
+  const items = Array.isArray(bon.items) ? bon.items : [];
 
-    destY += lineHeight;
-  }
-
-  // Customer Telephone
-  if (bon.customerTelephone) {
-    doc.setFont("times", "bold");
-    doc.text("Tél:", 125, destY);
-
-    doc.setFont("helvetica", "normal");
-    doc.text(bon.customerTelephone, 132, destY);
-
-    destY += lineHeight;
-  }
-
-  // Space before table
-  newY = destY + 10;
-
-  // Table (Option A: simple columns, totals below)
-  const tableData = bon.items.map((item, index) => [
-    (index + 1).toString(),
-    item.productName,
-    item.quantity.toString(),
-    formatCurrency(item.unitPriceHT ?? item.unitPrice ?? 0),
-    formatCurrency(item.totalHT ?? item.totalPrice ?? 0),
+  const tableData = items.map((item, index) => [
+    String(index + 1),
+    txt(item.productName),
+    formatQty(item.quantity),
+    formatMoney(item.unitPriceHT ?? item.unitPrice ?? 0),
+    formatMoney(item.totalHT ?? 0),
   ]);
 
   autoTable(doc, {
-    // head: [["N°", "Désignation", "Qté", "P.U.HT", "Total HT"]],
-    head: [["Code", "Désignation", "Quantité", "Prix Unitaire", "Montant"]],
-    body: tableData,
-    startY: newY,
+    head: [["N°", "Désignation", "Qté", `P.U. HT`, `Montant HT`]],
+    body: tableData.length > 0 ? tableData : [["", "—", "", "", ""]],
+    startY: BOXES_Y + BOX_H + 8,
     theme: "grid",
+    showHead: "everyPage",
+    // Une ligne d'article ne doit jamais être coupée en deux par un saut de page.
+    rowPageBreak: "avoid",
+    styles: {
+      font: "helvetica",
+      fontSize: 9,
+      cellPadding: 2.2,
+      lineColor: HAIRLINE,
+      lineWidth: 0.15,
+      textColor: INK,
+      overflow: "linebreak",
+    },
     headStyles: {
-      fillColor: [59, 77, 143],
+      fillColor: ACCENT,
       textColor: 255,
       fontStyle: "bold",
+      fontSize: 9,
       halign: "center",
+      valign: "middle",
     },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
+    alternateRowStyles: { fillColor: ZEBRA },
     columnStyles: {
-      0: { halign: "center", cellWidth: 15 },
-      1: { halign: "center", cellWidth: 50 },
-      2: { halign: "center", cellWidth: 35 },
-      3: { halign: "center", cellWidth: 35 },
-      4: { halign: "center", cellWidth: 35 },
+      0: { halign: "center", cellWidth: 12 },
+      1: { halign: "left", cellWidth: 82 },
+      2: { halign: "center", cellWidth: 22 },
+      3: { halign: "right", cellWidth: 32 },
+      4: { halign: "right", cellWidth: 32 },
     },
-    margin: { left: 20, right: 20, top: 45 }, // This will center the table by setting equal margins
-
-    didDrawPage: () => {
-      drawHeader(doc); // ✅ header on every page
-    },
+    margin: { top: HEADER_H, right: M, bottom: FOOTER_H, left: M },
+    // willDrawPage précède la ligne d'en-tête répétée -> l'endroit correct.
+    willDrawPage: () => drawPageHeader(),
   });
 
-  // Totals below table - Create a 2-column table for totals
-  const finalY = (doc as any).lastAutoTable.finalY || 150;
+  let y =
+    ((doc as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ??
+      HEADER_H) + 8;
 
-  // Prepare totals data for the table
-  const totalsData = [
-    ["Total HT", formatCurrency(bon.totalHT ?? 0)],
-    ["TVA (19%)", formatCurrency(bon.totalTVA ?? 0)],
-    ["Total TTC", formatCurrency(bon.totalTTC ?? bon.totalAmount ?? 0)],
+  /** Passe à la page suivante si `needed` mm ne tiennent pas sous `y`. */
+  const ensureSpace = (needed: number) => {
+    if (y + needed > PAGE_H - FOOTER_H) {
+      doc.addPage();
+      drawPageHeader();
+      y = HEADER_H;
+    }
+  };
+
+  /* ----- Récapitulatif HT / TVA / TTC -------------------------------------- */
+
+  // Un seul taux sur toutes les lignes : on l'affiche. Plusieurs : l'étiquette
+  // reste générique, le détail est dans les lignes du tableau.
+  const rates = Array.from(
+    new Set(
+      items
+        .map((i) => i.tvaRate)
+        .filter((r): r is number => Number.isFinite(r)),
+    ),
+  );
+  const tvaLabel =
+    rates.length === 1 ? `TVA (${formatQty(rates[0])}${NB}%)` : "TVA";
+
+  const totalHT = bon.totalHT ?? 0;
+  const totalTVA = bon.totalTVA ?? 0;
+  const totalTTC = bon.totalTTC ?? bon.totalAmount ?? 0;
+
+  const TOTALS_W = 76;
+  const TOTALS_X = RIGHT - TOTALS_W;
+  const TOTALS_ROW_H = 7;
+
+  ensureSpace(3 * TOTALS_ROW_H + 4);
+
+  const totalsRows: Array<[string, string, boolean]> = [
+    [`Total HT`, formatMoney(totalHT), false],
+    [tvaLabel, formatMoney(totalTVA), false],
+    [`Total TTC`, `${formatMoney(totalTTC)}${NB}TND`, true],
   ];
 
-  autoTable(doc, {
-    body: totalsData,
-    startY: finalY + 2,
-    theme: "grid", // You can use "grid", "striped", or "plain"
-    tableWidth: 70,
-    margin: { left: 120 }, // Position it to the right side
-    styles: {
-      fontSize: 9,
-      cellPadding: 3,
-    },
-    columnStyles: {
-      0: {
-        fontStyle: "bold",
-        cellWidth: 35,
-        halign: "left",
-      },
-      1: {
-        cellWidth: 35,
-        halign: "right",
-        fontStyle: "normal",
-      },
-    },
-    didDrawPage: () => {
-      drawHeader(doc);
-    },
+  totalsRows.forEach(([label, value, strong], i) => {
+    const rowY = y + i * TOTALS_ROW_H;
+
+    if (strong) {
+      setFill(ACCENT);
+      doc.rect(TOTALS_X, rowY, TOTALS_W, TOTALS_ROW_H, "F");
+      setColor([255, 255, 255]);
+    } else {
+      setFill(ZEBRA);
+      doc.rect(TOTALS_X, rowY, TOTALS_W, TOTALS_ROW_H, "F");
+      setColor(INK);
+    }
+
+    setStroke(HAIRLINE);
+    doc.setLineWidth(0.15);
+    doc.rect(TOTALS_X, rowY, TOTALS_W, TOTALS_ROW_H, "D");
+
+    doc.setFontSize(strong ? 10 : 9);
+    doc.setFont("helvetica", strong ? "bold" : "normal");
+    doc.text(label, TOTALS_X + 3, rowY + TOTALS_ROW_H - 2.4);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(value, RIGHT - 3, rowY + TOTALS_ROW_H - 2.4, { align: "right" });
   });
 
-  // Get the final Y position after totals table
-  const totalsTableFinalY = (doc as any).lastAutoTable.finalY || finalY + 50;
-  const signatureY = totalsTableFinalY + 30; // Position for signatures
+  y += 3 * TOTALS_ROW_H + 12;
 
-  // Left side: Cachet et signature (Provider signature)
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
+  /* ----- Signatures -------------------------------------------------------- */
 
-  // Left side label
-  doc.text("Signature client", 33, signatureY);
+  const SIGN_H = 30;
 
-  // Left side line (longer line for provider)
-  const leftLineStartX = 20;
-  const leftLineEndX = 75;
-  const leftLineY = signatureY + 10;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(leftLineStartX, leftLineY, leftLineEndX, leftLineY);
+  ensureSpace(SIGN_H);
 
-  // Right side: Signature client (Client signature)
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
+  const drawSignatureBox = (x: number, title: string, name: string) => {
+    setStroke(HAIRLINE);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, BOX_W, SIGN_H, 2, 2, "D");
 
-  // Right side label
-  doc.text("Cachet et Signature", 150, signatureY);
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "bold");
+    setColor(INK);
+    doc.text(title, x + BOX_PAD, y + 6);
 
-  // Right side line (shorter line for client)
-  const rightLineStartX = 145;
-  const rightLineEndX = 190;
-  const rightLineY = signatureY + 10;
-  doc.setDrawColor(200, 200, 200);
-  doc.line(rightLineStartX, rightLineY, rightLineEndX, rightLineY);
+    if (name) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      setColor(MUTED);
+      doc.text(
+        doc.splitTextToSize(name, BOX_INNER)[0] as string,
+        x + BOX_PAD,
+        y + 12,
+      );
+    }
 
-  // Footer
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(128, 128, 128);
-  // doc.text("Document généré par StockFlow", 105, 285, { align: "center" });
+    setStroke(HAIRLINE);
+    doc.setLineWidth(0.25);
+    doc.line(x + BOX_PAD, y + SIGN_H - 5, x + BOX_W - BOX_PAD, y + SIGN_H - 5);
+  };
 
-  const pageHeight = doc.internal.pageSize.height;
-  doc.text("Document généré par StockFlow", 105, pageHeight - 10, {
-    align: "center",
-  });
+  drawSignatureBox(M, "Signature du client", "");
+  drawSignatureBox(
+    M + BOX_W + BOX_GAP,
+    "Cachet et signature",
+    has(us?.fullName) ? txt(us?.fullName) : "",
+  );
+
+  /* ----- Pieds de page (une fois le nombre total de pages connu) ---------- */
 
   const totalPages = doc.getNumberOfPages();
-
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    drawFooter(doc, i, totalPages);
+    drawPageFooter(i, totalPages);
   }
 
   return doc;
 }
 
-// Browser-specific PDF download
+/* -------------------------------------------------------------------------- */
+/*  Export : navigateur                                                        */
+/* -------------------------------------------------------------------------- */
+
 function downloadPDFInBrowser(doc: jsPDF, fileName: string) {
-  // Create a blob from the PDF
   const pdfBlob = doc.output("blob");
 
-  // Create download link
   const url = URL.createObjectURL(pdfBlob);
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
 
-  // Append to body, click and remove
   document.body.appendChild(link);
   link.click();
 
-  // Clean up
   setTimeout(() => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }, 100);
 }
 
-// Browser-specific PDF print
 function printPDFInBrowser(doc: jsPDF) {
-  // Create a blob and open in new window for printing
   const pdfBlob = doc.output("blob");
   const pdfUrl = URL.createObjectURL(pdfBlob);
 
@@ -332,25 +727,20 @@ function printPDFInBrowser(doc: jsPDF) {
     };
   }
 
-  // Clean up URL after a delay
   setTimeout(() => {
     URL.revokeObjectURL(pdfUrl);
   }, 1000);
 }
 
-// Browser-specific PDF share
 async function sharePDFInBrowser(doc: jsPDF, fileName: string) {
   try {
     if (navigator.share && navigator.canShare) {
-      // Convert PDF to blob
       const pdfBlob = doc.output("blob");
 
-      // Create a File object
       const pdfFile = new File([pdfBlob], fileName, {
         type: "application/pdf",
       });
 
-      // Check if we can share files
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
           title: "Bon de livraison PDF",
@@ -358,21 +748,54 @@ async function sharePDFInBrowser(doc: jsPDF, fileName: string) {
           files: [pdfFile],
         });
       } else {
-        // Fallback to download
         downloadPDFInBrowser(doc, fileName);
       }
     } else {
-      // Fallback to download if Web Share API is not available
       downloadPDFInBrowser(doc, fileName);
     }
   } catch (error) {
     console.error("Error sharing PDF in browser:", error);
-    // Fallback to download
     downloadPDFInBrowser(doc, fileName);
   }
 }
 
-// Unified download function that works on both platforms
+/* -------------------------------------------------------------------------- */
+/*  Export : API unifiée navigateur / natif                                    */
+/* -------------------------------------------------------------------------- */
+
+function toBase64(doc: jsPDF): string {
+  const bytes = new Uint8Array(doc.output("arraybuffer"));
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function buildFileName(bon: BonDeLivraison): string {
+  const ref = String(bon.number ?? bon.id ?? "sans-numero").replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  );
+  return `bon_livraison_${ref}_${Date.now()}.pdf`;
+}
+
+async function writeToDocuments(doc: jsPDF, fileName: string): Promise<string> {
+  await Filesystem.writeFile({
+    path: fileName,
+    data: toBase64(doc),
+    directory: Directory.Documents,
+    recursive: true,
+  });
+
+  const uriResult = await Filesystem.getUri({
+    directory: Directory.Documents,
+    path: fileName,
+  });
+
+  return uriResult.uri;
+}
+
 export async function downloadBonPDF(
   bon: BonDeLivraison,
   com: CompanyProfile | null | undefined,
@@ -381,141 +804,69 @@ export async function downloadBonPDF(
   if (!com) {
     throw new Error("Company profile is required to generate the PDF");
   }
+
   const doc = generateBonPDF(bon, com, us);
-  const fileName = `bon_livraison_${bon.id ?? bon.number}_${Date.now()}.pdf`;
+  const fileName = buildFileName(bon);
 
-  // Check if we're in a native mobile app or browser
   if (Capacitor.isNativePlatform()) {
-    // Native mobile code (existing code)
-    const pdfOutput = doc.output("arraybuffer");
-    const bytes = new Uint8Array(pdfOutput);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const pdfBase64 = btoa(binary);
+    const uri = await writeToDocuments(doc, fileName);
 
-    // Write file
-    const result = await Filesystem.writeFile({
-      path: fileName,
-      data: pdfBase64,
-      directory: Directory.Documents,
-      recursive: true,
-    });
-
-    console.log("File written:", result);
-
-    // Get URI
-    const uriResult = await Filesystem.getUri({
-      directory: Directory.Documents,
-      path: fileName,
-    });
-
-    console.log("File URI:", uriResult.uri);
-
-    // Open file
     await FileOpener.open({
-      filePath: uriResult.uri,
+      filePath: uri,
       contentType: "application/pdf",
     });
 
-    // Share
     await Share.share({
       title: "Bon de livraison PDF",
       text: "Votre bon de livraison est prêt",
-      url: uriResult.uri,
+      url: uri,
     });
   } else {
-    // Browser code
     downloadPDFInBrowser(doc, fileName);
   }
 }
 
-// Unified print function that works on both platforms
 export async function printBon(
   bon: BonDeLivraison,
   com: CompanyProfile | null | undefined,
   us: UserProfile | null | undefined,
 ) {
-  if (!com) {
-    throw new Error("Company profile is required to generate the PDF");
-  }
+  if (!com) throw new Error("Company profile is required to print the PDF");
+
   const doc = generateBonPDF(bon, com, us);
-  const fileName = `bon_livraison_${bon.id ?? bon.number}_${Date.now()}.pdf`;
+  const fileName = buildFileName(bon);
 
   if (Capacitor.isNativePlatform()) {
-    // Native mobile code (existing code)
-    const pdfOutput = doc.output("arraybuffer");
-    const bytes = new Uint8Array(pdfOutput);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const pdfBase64 = btoa(binary);
+    const uri = await writeToDocuments(doc, fileName);
 
-    // Write file
-    await Filesystem.writeFile({
-      path: fileName,
-      data: pdfBase64,
-      directory: Directory.Documents,
-      recursive: true,
-    });
-
-    // Open file for printing
     await FileOpener.open({
-      filePath: `file:///storage/emulated/0/Documents/${fileName}`,
+      filePath: uri,
       contentType: "application/pdf",
     });
   } else {
-    // Browser code
     printPDFInBrowser(doc);
   }
 }
 
-// Unified share function that works on both platforms
 export async function shareBonPDF(
   bon: BonDeLivraison,
   com: CompanyProfile | null | undefined,
   us: UserProfile | null | undefined,
 ) {
-  if (!com) {
-    throw new Error("Company profile is required to generate the PDF");
-  }
+  if (!com) throw new Error("Company profile is required to share the PDF");
+
   const doc = generateBonPDF(bon, com, us);
-  const fileName = `bon_livraison_${bon.id ?? bon.number}_${Date.now()}.pdf`;
+  const fileName = buildFileName(bon);
 
   if (Capacitor.isNativePlatform()) {
-    // Native mobile code (existing code)
-    const pdfOutput = doc.output("arraybuffer");
-    const bytes = new Uint8Array(pdfOutput);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const pdfBase64 = btoa(binary);
+    const uri = await writeToDocuments(doc, fileName);
 
-    // Write file
-    await Filesystem.writeFile({
-      path: fileName,
-      data: pdfBase64,
-      directory: Directory.Documents,
-      recursive: true,
-    });
-
-    // Get URI
-    const uriResult = await Filesystem.getUri({
-      directory: Directory.Documents,
-      path: fileName,
-    });
-
-    // Share
     await Share.share({
       title: "Bon de livraison PDF",
       text: "Votre bon de livraison est prêt",
-      url: uriResult.uri,
+      url: uri,
     });
   } else {
-    // Browser code
     await sharePDFInBrowser(doc, fileName);
   }
 }

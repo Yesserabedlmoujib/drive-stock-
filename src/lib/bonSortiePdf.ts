@@ -169,9 +169,19 @@ export function generateBonPDF(
   const identFirstLineY = IDENT_Y + 15;
   const IDENT_LINE_STEP = 4.6;
 
+  const identInnerW = IDENT_X + IDENT_W - 4 - identTextX;
+
+  // Une adresse longue passe à la ligne : compter les champs suffirait à placer
+  // la ligne suivante par-dessus, et à fermer le cadre trop haut.
+  const identityLines = identity.reduce(
+    (n, [label, value]) =>
+      n + wrapLabelValue(label, value, identInnerW).lines.length,
+    0,
+  );
+
   const identTextBottom =
-    identity.length > 0
-      ? identFirstLineY + (identity.length - 1) * IDENT_LINE_STEP
+    identityLines > 0
+      ? identFirstLineY + (identityLines - 1) * IDENT_LINE_STEP
       : identNameY;
   const identLogoBottom = logo ? IDENT_Y + 4 + logo.h : IDENT_Y;
   const IDENT_H = Math.max(identTextBottom, identLogoBottom) - IDENT_Y + 5;
@@ -286,22 +296,15 @@ export function generateBonPDF(
     doc.setFont("helvetica", "bold");
     setColor(INK);
     doc.text(
-      doc.splitTextToSize(
-        companyName,
-        IDENT_X + IDENT_W - 4 - identTextX,
-      )[0] as string,
+      doc.splitTextToSize(companyName, identInnerW)[0] as string,
       identTextX,
       identNameY,
     );
 
-    identity.forEach(([label, value], i) => {
-      labelValue(
-        label,
-        value,
-        identTextX,
-        identFirstLineY + i * IDENT_LINE_STEP,
-        IDENT_X + IDENT_W - 4 - identTextX,
-      );
+    let identY = identFirstLineY;
+    identity.forEach(([label, value]) => {
+      const drawn = labelValue(label, value, identTextX, identY, identInnerW);
+      identY += drawn * IDENT_LINE_STEP;
     });
 
     // Titre + références (colonne du centre)
